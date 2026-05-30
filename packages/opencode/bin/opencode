@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 
 const childProcess = require("child_process")
 const fs = require("fs")
@@ -8,7 +8,11 @@ const os = require("os")
 const forwardedSignals = ["SIGINT", "SIGTERM", "SIGHUP"]
 
 function run(target) {
-  const child = childProcess.spawn(target, process.argv.slice(2), {
+  const isTs = target.endsWith(".ts") || target.endsWith(".js") && !target.endsWith("opencode.js") && !target.endsWith("opencode");
+  const spawnArgs = isTs ? ["run", target, ...process.argv.slice(2)] : process.argv.slice(2);
+  const spawnCmd = isTs ? "bun" : target;
+
+  const child = childProcess.spawn(spawnCmd, spawnArgs, {
     stdio: "inherit",
   })
 
@@ -169,6 +173,11 @@ const names = (() => {
 })()
 
 function findBinary(startDir) {
+  const localDevBin = path.join(startDir, "../dist", base, "bin", binary)
+  if (fs.existsSync(localDevBin)) {
+    return localDevBin
+  }
+
   let current = startDir
   for (;;) {
     const modules = path.join(current, "node_modules")
@@ -186,7 +195,8 @@ function findBinary(startDir) {
   }
 }
 
-const resolved = envPath || (fs.existsSync(cached) ? cached : findBinary(scriptDir))
+const localSrc = path.join(scriptDir, "../src/index.ts")
+const resolved = envPath || (fs.existsSync(cached) ? cached : findBinary(scriptDir)) || (fs.existsSync(localSrc) ? localSrc : null)
 if (!resolved) {
   console.error(
     "It seems that your package manager failed to install the right version of the opencode CLI for your platform. You can try manually installing " +
